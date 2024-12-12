@@ -1,0 +1,4 @@
+pytest
+parameterized
+black
+mypy
