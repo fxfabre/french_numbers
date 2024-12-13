@@ -1,3 +1,7 @@
+"""
+Contain all rules to apply, to convert a digit to text
+"""
+
 import math
 from abc import ABC
 
@@ -92,7 +96,7 @@ class ComplexTensCommand(ICommand):
 
     def can_execute(self, number: int) -> bool:
         """
-        Not exactly true, but by design, exceptions (71 & 80) are processed before
+        Not exactly true, but by design, exceptions (71) are processed before
         """
         return (number >= 60) and (number <= 99)
 
@@ -152,7 +156,7 @@ class ThousandsCommand(ICommand):
             current_unit_name = current_unit_name + "s"
 
         if left == 1:
-            text = current_unit_name
+            text = current_unit_name  # million, milliard
         else:
             text = digit_to_txt_processor(left) + f"-{current_unit_name}"
         return text, rest

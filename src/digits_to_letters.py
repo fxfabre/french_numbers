@@ -24,6 +24,12 @@ fr_commands: list[ICommand] = [
 
 
 def digits_to_text_fr(number: int) -> str:
+    """
+    Main function to genertate text from digit
+    :param number: the number to convert
+    :return: string with text from digit
+    """
+
     if number < 0:
         raise ValueError("Unable to process negative number")
     if number == 0:
@@ -31,6 +37,7 @@ def digits_to_text_fr(number: int) -> str:
 
     text_number = _digits_to_text_fr(fr_commands, number)
 
+    # Add a trailing s if required
     if _must_add_s_end(number):
         return text_number + "s"
     return text_number
@@ -38,7 +45,8 @@ def digits_to_text_fr(number: int) -> str:
 
 def _digits_to_text_fr(commands: list[ICommand], number: int) -> str:
     """
-    Does not handle exceptions (s)
+    Core function to genertate text from digit
+    Does not handle "s" (quatre-vingtS, deux-centS ...)
     """
     text_numbers = []
     while number > 0:
@@ -65,6 +73,19 @@ def _must_add_s_end(number: int) -> bool:
 def _loop_on_commands(
     digit_to_txt_processor, commands: list[ICommand], number: int
 ) -> tuple[str, int]:
+    """
+    Apply all commands
+
+    :param digit_to_txt_processor: Function to convert digit to text
+    :param commands: All rules to apply
+    :param number: number to convert
+    :return:
+        - str : the text for the part of the number converted
+        - int : the missing part of the number that still need to be converted
+
+    Exemple :
+    for intput number 103, will output ("cent", 3)
+    """
     for command in commands:
         if command.can_execute(number):
             return command.execute(lambda nb: digit_to_txt_processor(commands, nb), number)
