@@ -1,3 +1,4 @@
+import math
 from abc import ABC
 
 
@@ -15,7 +16,7 @@ class ICommand(ABC):
         """
         raise NotImplementedError()
 
-    def execute(self, number: int) -> tuple[str, int]:
+    def execute(self, digit_to_txt_processor, number: int) -> tuple[str, int]:
         """
         :param number: number to translate to text
         :return:
@@ -32,7 +33,7 @@ class ICommand(ABC):
 
 class UnitsCommand(ICommand):
     """
-    Process number from 0 to 16
+    Process number from 0 to 16 + exceptions (71)
     """
 
     numbers_mapping = {
@@ -53,12 +54,13 @@ class UnitsCommand(ICommand):
         14: "quatorze",
         15: "quinze",
         16: "seize",
+        71: "soixante-et-onze",
     }
 
     def can_execute(self, number: int) -> bool:
         return number in self.numbers_mapping
 
-    def execute(self, number: int) -> tuple[str, int]:
+    def execute(self, digit_to_txt_processor, number: int) -> tuple[str, int]:
         return self.numbers_mapping[number], 0
 
 
@@ -72,7 +74,7 @@ class TensCommand(ICommand):
     def can_execute(self, number: int) -> bool:
         return (number >= 17) and (number <= 59)
 
-    def execute(self, number: int) -> tuple[str, int]:
+    def execute(self, digit_to_txt_processor, number: int) -> tuple[str, int]:
         quotient, remainder = divmod(number, 10)
         base = self.numbers_mapping[quotient * 10]
         if remainder == 1:  # Gestion des "et-un"
@@ -80,63 +82,77 @@ class TensCommand(ICommand):
         return base, remainder
 
 
-# # Commande pour 60 à 99
-# class ComplexTensCommand(ICommand):
-#     def __init__(self):
-#         self.base_60 = "soixante"
-#         self.base_80 = "quatre-vingt"
-#
-#     def execute(self, number: int) -> tuple[str, int]:
-#         if 60 <= number < 80:
-#             remainder = number - 60
-#             if remainder == 0:
-#                 return self.base_60
-#             return f"{self.base_60}-{UnitsCommand().execute(remainder)}"
-#         elif 80 <= number < 100:
-#             remainder = number - 80
-#             if remainder == 0:
-#                 return self.base_80
-#             return f"{self.base_80}-{UnitsCommand().execute(remainder)}"
-#         return ""
-#
-#
-# # Commande pour les centaines
-# class HundredsCommand(ICommand):
-#     def __init__(self):
-#         self.units_command = UnitsCommand()
-#
-#     def execute(self, number: int) -> tuple[str, int]:
-#         quotient, remainder = divmod(number, 100)
-#         if quotient == 0:
-#             return ""
-#         elif quotient == 1:
-#             base = "cent"
-#         else:
-#             base = f"{self.units_command.execute(quotient)}-cent"
-#
-#         if remainder > 0:
-#             tens_command = CombinedTensCommand()
-#             return f"{base} {tens_command.execute(remainder)}"
-#         return base
-#
-#
-# # Commande combinée pour les dizaines (0-99)
-# class CombinedTensCommand(ICommand):
-#     def execute(self, number: int) -> tuple[str, int]:
-#         if number < 17:
-#             return UnitsCommand().execute(number)
-#         elif number < 60:
-#             return TensCommand().execute(number)
-#         elif number < 100:
-#             return ComplexTensCommand().execute(number)
-#         return ""
-#
-#
-# # Interpréteur principal
-# class NumberToWords:
-#     def execute(self, number: int) -> str:
-#         if number < 0 or number > 999:
-#             raise ValueError("Le nombre doit être entre 0 et 999")
-#         if number < 100:
-#             return CombinedTensCommand().execute(number)
-#         return HundredsCommand().execute(number)
+class ComplexTensCommand(ICommand):
+    """
+    Process numbers between 60 and 99
+    Except numbers processed in UnitsCommand, as exceptions (71)
+    """
+
+    numbers_mapping = {60: "soixante", 80: "quatre-vingt"}
+
+    def can_execute(self, number: int) -> bool:
+        """
+        Not exactly true, but by design, exceptions (71 & 80) are processed before
+        """
+        return (number >= 60) and (number <= 99)
+
+    def execute(self, digit_to_txt_processor, number: int) -> tuple[str, int]:
+        if 60 <= number < 80:
+            base = 60
+        elif 80 <= number < 100:
+            base = 80
+        else:
+            cmd_name = self.__class__.__name__
+            raise ValueError(f"Unable to prcess {number} in this command {cmd_name}")
+
+        return self.numbers_mapping[base], number - base
+
+
+class HundredsCommand(ICommand):
+    """
+    Process hundreds
+    """
+
+    def __init__(self):
+        self.units_command = UnitsCommand()
+
+    def can_execute(self, number: int) -> bool:
+        return (number >= 100) and (number <= 999)
+
+    def execute(self, digit_to_txt_processor, number: int) -> tuple[str, int]:
+        quotient, remainder = divmod(number, 100)
+        cents_txt = digit_to_txt_processor(quotient)
+        if quotient == 1:
+            return "cent", number - 100
+        return f"{cents_txt}-cent", number % 100
+
+
+class ThousandsCommand(ICommand):
+    """
+    Process number > 1000
+    """
+
+    numbers_mapping = {1000: "mille", 1_000_000: "million", 1_000_000_000: "milliard"}
+
+    def can_execute(self, number: int) -> bool:
+        return (number >= 1000) and (number < 1000 * max(self.numbers_mapping))
+
+    def execute(self, digit_to_txt_processor, number: int) -> tuple[str, int]:
+        # Find the biggest unit to process : mille, millions, milliard ...
+        current_unit_log = int(math.log(number, 1000))
+        current_unit = 1000**current_unit_log
+        current_unit_name = self.numbers_mapping[current_unit]  # million, milliard
+
+        # Split 12_123_123 into (12, 123_123)
+        left, rest = divmod(number, current_unit)
+
+        if left == 0:
+            return "", rest
+        if (left > 1) and (current_unit_name != "mille"):
+            current_unit_name = current_unit_name + "s"
+
+        if left == 1:
+            text = current_unit_name
+        else:
+            text = digit_to_txt_processor(left) + f"-{current_unit_name}"
+        return text, rest
